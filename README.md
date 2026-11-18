@@ -14,7 +14,7 @@ A study streak tracker that runs entirely in your browser. No account, no server
 - **Subtasks:** break a task into parts (for example LeetCode into Arrays and DP). Each subtask has its own draggable progress line, and the main task counts for the day once every subtask is at 100%
 - **Tasks:** create as many as you like, with optional weekly, monthly or dated plans and custom colours (palette or colour wheel)
 - **Journal:** every daily note, session note and task note in one place, plus your ticket collection
-- Light theme and a dark navy theme with drifting fireflies (can be switched off in the footer)
+- Light theme and a dark navy theme
 
 ## Your data
 
