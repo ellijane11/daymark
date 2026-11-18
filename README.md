@@ -20,6 +20,10 @@ A study streak tracker that runs entirely in your browser. No account, no server
 
 Everything is stored in your browser (`localStorage`). Use **Export** and **Import** in the footer to back up or move your data, and **Reset all data** to start over.
 
+## Privacy
+
+Your tasks, notes and sessions never leave your browser. The only thing counted is anonymous page visits, using [GoatCounter](https://www.goatcounter.com/) (no cookies, no personal data).
+
 ## Run it locally
 
 Open `index.html` in a browser. There is no build step.
