@@ -1,0 +1,10 @@
+{
+  "name": "Daymark — Study Streak",
+  "short_name": "Daymark",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7f6f2",
+  "theme_color": "#f7f6f2",
+  "description": "Plan study topics, track focused time, and keep your study streak."
+}
