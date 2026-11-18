@@ -19,11 +19,13 @@
   --tc-d:var(--ev);--tinkd:var(--lb);--sky1:color-mix(in srgb,var(--lb) 75%,#fff);--sky2:color-mix(in srgb,var(--lb) 22%,#fff);
 }
 [data-theme=dark]{
-  --bg:color-mix(in srgb,var(--ev) 80%,#000);--surface:color-mix(in srgb,var(--ev) 88%,var(--un));--surface2:color-mix(in srgb,var(--ev) 74%,var(--un));
-  --ink:var(--lb);--muted:color-mix(in srgb,var(--lb) 66%,var(--ev));--line:color-mix(in srgb,var(--un) 36%,var(--ev));
-  --primary:var(--gl);--onp:var(--ev);--shadow:0 1px 2px rgb(0 0 0 / .3),0 12px 30px rgb(0 0 0 / .28);
-  --tc-d:var(--lb);--tinkd:var(--ev);--sky1:color-mix(in srgb,var(--dd) 40%,var(--ev));--sky2:color-mix(in srgb,var(--ev) 85%,var(--un));
+  --bg:#0a1630;--surface:#0f1f44;--surface2:#172b58;
+  --ink:var(--lb);--muted:#93acd0;--line:#26407a;
+  --primary:var(--gl);--onp:#0a1430;--shadow:0 1px 2px rgb(0 0 0 / .35),0 12px 30px rgb(0 0 0 / .35);
+  --tc-d:var(--lb);--tinkd:#0a1430;--sky1:#1d3a72;--sky2:#0b1836;
 }
+[data-theme=dark] html,html[data-theme=dark]{background:#081226}
+[data-theme=dark] body{background:linear-gradient(180deg,#081226 0%,#0b1a3b 55%,#0e2250 100%) fixed}
 .tc-a{--tcol:var(--dd);--tink:var(--ev)}
 .tc-b{--tcol:var(--gl);--tink:var(--ev)}
 .tc-c{--tcol:var(--un);--tink:var(--ev)}
@@ -104,6 +106,19 @@ main{display:flex;flex-direction:column;gap:20px}
 .tray{display:flex;flex-wrap:wrap;gap:8px}
 .tchip{display:inline-flex;gap:8px;align-items:center;padding:6px 12px;border-radius:999px;border:1px dashed var(--tcol);background:var(--surface);cursor:grab;font:600 13px var(--sans);color:var(--ink)}
 .tchip::before{content:'';width:9px;height:9px;border-radius:50%;background:var(--tcol)}
+/* fireflies (dark mode only) */
+#flies{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:15;display:none}
+[data-theme=dark] #flies{display:block}
+/* subtask progress line */
+.progwrap{display:flex;align-items:center;gap:12px;margin:0 0 8px 40px}
+.prog{-webkit-appearance:none;appearance:none;flex:1;height:10px;border-radius:999px;outline:0;cursor:pointer;margin:0;
+  background:linear-gradient(90deg,var(--tcol,var(--gl)) var(--p,0%),var(--surface2) var(--p,0%))}
+.prog::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:24px;height:24px;border-radius:50%;background:var(--surface);border:3px solid var(--tcol,var(--gl));box-shadow:0 1px 5px rgb(0 0 0 / .35);cursor:grab}
+.prog::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--surface);border:3px solid var(--tcol,var(--gl));cursor:grab}
+.prog:focus-visible::-webkit-slider-thumb{box-shadow:0 0 0 4px color-mix(in srgb,var(--tcol,var(--gl)) 35%,transparent)}
+.pct{font:700 13px var(--sans);min-width:42px;text-align:right}
+.pline{flex:1;height:8px;border-radius:999px;background:linear-gradient(90deg,var(--tcol,var(--gl)) var(--p,0%),var(--surface2) var(--p,0%))}
+.progwrap.sub{margin:4px 0 0}
 /* subtasks */
 .tgroup{border-bottom:1px solid var(--line);padding-bottom:6px}
 .tgroup:last-child{border-bottom:0}
@@ -125,7 +140,7 @@ main{display:flex;flex-direction:column;gap:20px}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .seg .btn{border:0;border-radius:0}
 .seg .btn.on{background:var(--dd);color:#fff}
-[data-theme=dark] .seg .btn.on{color:var(--ev);background:var(--lb)}
+[data-theme=dark] .seg .btn.on{color:#0a1430;background:var(--lb)}
 /* log / journal */
 .sess{padding:12px 0;border-bottom:1px solid var(--line)}
 .sess:last-child{border-bottom:0}
@@ -205,6 +220,7 @@ footer{display:flex;gap:10px 16px;flex-wrap:wrap;justify-content:center;align-it
 </style>
 </head>
 <body>
+<canvas id="flies" aria-hidden="true"></canvas>
 <header>
   <div class="brandrow">
     <div><div class="brand">Daymark</div><div class="sub" id="dateLine"></div></div>
@@ -223,6 +239,7 @@ footer{display:flex;gap:10px 16px;flex-wrap:wrap;justify-content:center;align-it
   <div class="two">
     <section class="card dropzone" id="dropZone">
       <div class="sechead"><h2>Today's tasks</h2><span class="hintline" id="doneCount"></span></div>
+      <div class="pbar" id="dayBar" style="margin:0"><i style="width:0%"></i></div>
       <div id="todayList"></div>
       <div class="addrow" id="addRow"><select class="field" id="addSel" aria-label="Add a task to today"></select><button class="btn primary" id="addBtn">Add to today</button></div>
       <div class="hintline" id="trayHint">Or drag a task here:</div>
@@ -297,6 +314,7 @@ footer{display:flex;gap:10px 16px;flex-wrap:wrap;justify-content:center;align-it
 <footer>
   <button class="btn sm ghost" id="exportBtn">Export</button>
   <button class="btn sm ghost" id="importBtn">Import</button>
+  <button class="btn sm ghost" id="ffBtn">Fireflies: on</button>
   <button class="btn sm ghost danger" id="resetBtn">Reset all data</button>
   <input type="file" id="importFile" accept="application/json" hidden>
   <span>Saved in this browser</span>
@@ -380,9 +398,10 @@ function migrate(){
     S.plans=[];
     const tk=todayKey();S.added[tk]=[...new Set([...(S.added[tk]||[]),...S.tasks.filter(t=>t.repeat&&!t.archived).map(t=>t.id)])];
   }
-  S.v=4;S.daily||={};S.rewards||=[];
+  const prevV=S.v||0;S.v=5;S.daily||={};S.rewards||=[];
   S.rewards=S.rewards.filter(r=>!['foc:25','foc:45','day:1'].includes(r.key));
-  S.tasks.forEach((t,i)=>{if(!COLORS.includes(t.color)&&!isHex(t.color))t.color=COLORS[i%4];t.checks||={};t.subs||=[];if(!t.own)t.own={...t.checks};t.subs.forEach(x=>{x.checks||={}})});
+  S.tasks.forEach((t,i)=>{if(!COLORS.includes(t.color)&&!isHex(t.color))t.color=COLORS[i%4];t.checks||={};t.subs||=[];if(!t.own)t.own={...t.checks};t.subs.forEach(x=>{x.checks||={};if(!x.prog){x.prog={};Object.keys(x.checks).forEach(d=>{x.prog[d]=100})}})});
+  if(prevV<5)S.tasks.forEach(t=>{if((t.subs||[]).length)rebuildChecks(t)});
 }
 migrate();
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch{toast('Could not save (storage full?)')}};
@@ -391,15 +410,16 @@ const taskName=id=>task(id)?.name||'Free study';
 /* subtasks: ticking any subtask counts the day for the parent task (the streak lives on the parent) */
 const subOf=(t,sid)=>t?.subs?.find(x=>x.id===sid);
 const label=(tid,sid)=>{const t=task(tid);if(!t)return 'Free study';const x=subOf(t,sid);return x?`${t.name} › ${x.name}`:t.name};
-function recompute(t,k){const any=(t.subs||[]).some(x=>x.checks[k]);if(any||t.own?.[k])t.checks[k]=1;else delete t.checks[k]}
+function subsFor(t,k){return (t.subs||[]).filter(x=>!x.since||k>=x.since)}
+function recompute(t,k){const subs=subsFor(t,k);const all=subs.length>0&&subs.every(x=>x.checks[k]);if(all||t.own?.[k])t.checks[k]=1;else delete t.checks[k]}
 function setOwn(t,k,on){t.own||={};if(on)t.own[k]=1;else delete t.own[k];recompute(t,k)}
-function setSub(t,x,k,on){if(on)x.checks[k]=1;else delete x.checks[k];recompute(t,k)}
-function markDone(t,sid,k){const x=subOf(t,sid);if(x)setSub(t,x,k,true);else setOwn(t,k,true)}
+function setSub(t,x,k,on){x.prog||={};if(on){x.prog[k]=100;x.checks[k]=1}else{delete x.prog[k];delete x.checks[k]}recompute(t,k)}
+function setSubProg(t,x,k,pct){x.prog||={};pct=Math.max(0,Math.min(100,Math.round(pct)));if(pct>0)x.prog[k]=pct;else delete x.prog[k];if(pct>=100)x.checks[k]=1;else delete x.checks[k];recompute(t,k)}
+const subPct=(x,k)=>x.checks[k]?100:(x.prog&&x.prog[k])||0;
+function markDone(t,sid,k){if(subOf(t,sid))return;if(!(t.subs||[]).length)setOwn(t,k,true)}
 function rebuildChecks(t){const keys=new Set([...Object.keys(t.own||{}),...(t.subs||[]).flatMap(x=>Object.keys(x.checks))]);t.checks={};keys.forEach(k=>recompute(t,k))}
-const subStreak=x=>streakOf(new Set(Object.keys(x.checks)));
-function addSubs(t,names){String(names||'').split(',').map(x=>x.trim()).filter(Boolean).forEach(n=>{if(!t.subs.some(x=>x.name.toLowerCase()===n.toLowerCase()))t.subs.push({id:uid(),name:n.slice(0,40),checks:{}})})}
+function addSubs(t,names){String(names||'').split(',').map(x=>x.trim()).filter(Boolean).forEach(n=>{if(!t.subs.some(x=>x.name.toLowerCase()===n.toLowerCase()))t.subs.push({id:uid(),name:n.slice(0,40),checks:{},prog:{},since:todayKey()})})}
 const subSecondsOn=(tid,sid,k)=>sessionsOn(k).filter(x=>x.taskId===tid&&x.subId===sid).reduce((a,x)=>a+x.seconds,0);
-const subChips=t=>(t.subs||[]).length?`<div class="subchips">${t.subs.map(x=>`<span class="badge">${esc(x.name)} · ${Object.keys(x.checks).length}d</span>`).join('')}</div>`:'';
 const openSubs=new Set();
 function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('on');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove('on'),2600)}
 
@@ -530,18 +550,18 @@ let dayCtx=null;
 function openDay(id,k){const t=task(id);if(!t)return;dayCtx={id,k};const ed=canEdit(k),m=taskSecondsOn(id,k),subs=t.subs||[];
   $('#dyTitle').textContent=t.name;$('#dyDate').textContent=longDate(k)+(k===todayKey()?' (today)':k===yesterdayKey()?' (yesterday)':'');
   const did=subs.filter(x=>x.checks[k]).map(x=>x.name);
-  $('#dyInfo').textContent=`${t.checks[k]?'Marked done':'Not marked done'}${did.length?' · '+did.join(', '):''}${m?' · '+fmtDur(m)+' studied':''}`;
+  $('#dyInfo').textContent=`${t.checks[k]?(subs.length?'All subtasks done':'Marked done'):(subs.length?'Not all subtasks done':'Not marked done')}${did.length?' · '+did.join(', '):''}${m?' · '+fmtDur(m)+' studied':''}`;
   const notes=S.notes.filter(n=>n.taskId===id&&n.date===k).sort((a,b)=>a.ts-b.ts);
   $('#dyNotes').innerHTML=notes.map(n=>`<div class="nt"><span class="kind">${n.kind==='session'?'Session':'Note'}</span>${n.subId&&subOf(t,n.subId)?`<span class="kind">${esc(subOf(t,n.subId).name)}</span>`:''}${esc(n.text)}</div>`).join('')||'<div class="muted small">No notes for this day.</div>';
-  $('#dySubs').innerHTML=subs.length?'<div class="small muted">Subtasks done that day</div>'+subs.map(x=>`<label class="row" style="cursor:pointer"><input type="checkbox" data-sub="${x.id}" ${x.checks[k]?'checked':''}> ${esc(x.name)}</label>`).join(''):'';
-  $('#dyDoneLbl').textContent=subs.length?'General study on this task (no specific subtask)':'I did this task on this day';
+  $('#dySubs').innerHTML=subs.length?'<div class="small muted">Tick the subtasks you did. The main task counts once all of them are done.</div>'+subsFor(t,k).map(x=>`<label class="row" style="cursor:pointer"><input type="checkbox" data-sub="${x.id}" ${x.checks[k]?'checked':''}> ${esc(x.name)}</label>`).join(''):'';
+  $('#dyDoneLbl').textContent='I did this task on this day';$('#dyDone').closest('label').hidden=subs.length>0;
   $('#dyEdit').hidden=!ed;$('#dyLocked').hidden=ed;$('#dySave').hidden=!ed;
-  $('#dyDone').checked=subs.length?!!t.own?.[k]:true;$('#dyText').value='';$('#dayWin').hidden=false}
+  $('#dyDone').checked=true;$('#dyText').value='';$('#dayWin').hidden=false}
 $('#dyClose').onclick=()=>$('#dayWin').hidden=true;
 $('#dayWin').addEventListener('mousedown',e=>{if(e.target.id==='dayWin')$('#dayWin').hidden=true});
 $('#dySave').onclick=()=>{const {id,k}=dayCtx,t=task(id);if(!canEdit(k)){toast('That day is locked');return}
-  document.querySelectorAll('#dySubs input[data-sub]').forEach(i=>{const x=subOf(t,i.dataset.sub);if(x)setSub(t,x,k,i.checked)});
-  setOwn(t,k,$('#dyDone').checked);
+  document.querySelectorAll('#dySubs input[data-sub]').forEach(i=>{const x=subOf(t,i.dataset.sub);if(x&&i.checked!==!!x.checks[k])setSub(t,x,k,i.checked)});
+  if(!(t.subs||[]).length)setOwn(t,k,$('#dyDone').checked);
   const v=$('#dyText').value.trim();if(v)addNote({kind:'task',taskId:id,date:k,text:v});
   $('#dayWin').hidden=true;save();renderAll()};
 
@@ -639,19 +659,22 @@ function tileHTML(t){
   const days=Object.keys(t.checks).length;
   return `<article class="tile ${tcCls(t.color)}" ${tcSty(t.color)}><div class="thead"><div class="tname">${esc(t.name)}</div><div class="tstreak"><span class="dot"></span>${st.cur}-day streak</div></div>
     <div class="wd">${'MTWTFSS'.split('').map(x=>`<span>${x}</span>`).join('')}</div><div class="cal">${cells}</div>
-    <div class="tfoot"><span>Best ${st.best} · ${days} day${days===1?'':'s'} done</span><span>${fmtDur(totalSeconds(t.id))} studied</span></div>${subChips(t)}</article>`}
+    <div class="tfoot"><span>Best ${st.best} · ${days} day${days===1?'':'s'} done</span><span>${fmtDur(totalSeconds(t.id))} studied</span></div></article>`}
 function renderTiles(){const td=todayTasks();$('#tiles').innerHTML=td.length?td.map(tileHTML).join(''):'<div class="card empty" style="grid-column:1/-1">No tasks picked for today yet. Choose some below, or create them on the Tasks page.</div>'}
 
 /* ---------- today's tasks ---------- */
-function todayGroup(t){const k=todayKey(),m=taskSecondsOn(t.id,k),st=taskStreak(t).cur,subs=t.subs||[],nDone=subs.filter(x=>x.checks[k]).length,done=!!t.checks[k];
-  const lead=subs.length?`<div class="tick static ${done?'on':''}" role="img" aria-label="${done?'Done today':'Not done yet'}">${done?ICON.check:''}</div>`:`<button class="tick ${done?'on':''}" data-act="tick" data-id="${t.id}" aria-label="Mark ${esc(t.name)} done">${done?ICON.check:''}</button>`;
-  const meta=`${subs.length?`${nDone}/${subs.length} subtasks today · `:''}${m?fmtDur(m)+' studied · ':''}${st}-day streak`;
-  const rows=subs.length?`<div class="subs">${subs.map(x=>{const sm=subSecondsOn(t.id,x.id,k),ss=subStreak(x).cur,on=!!x.checks[k];
-    return `<div class="subrow"><button class="tick sm ${on?'on':''}" data-act="subtick" data-id="${t.id}" data-sub="${x.id}" aria-label="Mark ${esc(x.name)} done">${on?ICON.check:''}</button><div class="tmain"><div class="sname">${esc(x.name)}</div><div class="tmeta">${sm?fmtDur(sm)+' today · ':''}${ss}-day streak</div></div><button class="btn sm" data-act="gosub" data-id="${t.id}" data-sub="${x.id}">Timer</button><button class="btn sm" data-act="subnote" data-id="${t.id}" data-sub="${x.id}">Note</button></div>`}).join('')}</div>`:'';
-  return `<div class="tgroup ${tcCls(t.color)}" ${tcSty(t.color)}><div class="trow">${lead}<div class="tmain"><div class="tname">${esc(t.name)}</div><div class="tmeta">${meta}</div></div><button class="btn sm" data-act="go" data-id="${t.id}">Timer</button><button class="btn sm" data-act="tnote" data-id="${t.id}">Note</button><button class="btn sm ghost" data-act="untoday" data-id="${t.id}" title="Remove from today" aria-label="Remove from today">${ICON.x}</button></div>${rows}</div>`}
+function dayProgress(){const k=todayKey();let done=0,total=0;todayTasks().forEach(t=>{const subs=subsFor(t,k);if(subs.length){total+=subs.length*100;done+=subs.reduce((a,x)=>a+subPct(x,k),0)}else{total+=100;if(t.checks[k])done+=100}});return total?Math.round(done/total*100):0}
+function todayGroup(t){const k=todayKey(),m=taskSecondsOn(t.id,k),st=taskStreak(t).cur,subs=subsFor(t,k),nDone=subs.filter(x=>x.checks[k]).length,done=!!t.checks[k];
+  const avg=subs.length?Math.round(subs.reduce((a,x)=>a+subPct(x,k),0)/subs.length):0;
+  const lead=subs.length?`<div class="tick static ${done?'on':''}" role="img" aria-label="${done?'All subtasks done':'Not finished yet'}">${done?ICON.check:''}</div>`:`<button class="tick ${done?'on':''}" data-act="tick" data-id="${t.id}" aria-label="Mark ${esc(t.name)} done">${done?ICON.check:''}</button>`;
+  const meta=`${subs.length?`${nDone} of ${subs.length} subtasks done · `:''}${m?fmtDur(m)+' studied · ':''}${st}-day streak`;
+  const overall=subs.length?`<div class="progwrap"><div class="pline" style="--p:${avg}%" role="progressbar" aria-valuenow="${avg}" aria-valuemin="0" aria-valuemax="100" aria-label="Overall progress for ${esc(t.name)}"></div><span class="pct">${avg}%</span></div>`:'';
+  const rows=subs.length?`<div class="subs">${subs.map(x=>{const sm=subSecondsOn(t.id,x.id,k),on=!!x.checks[k],pc=subPct(x,k);
+    return `<div class="subrow"><button class="tick sm ${on?'on':''}" data-act="subtick" data-id="${t.id}" data-sub="${x.id}" aria-label="Mark ${esc(x.name)} done">${on?ICON.check:''}</button><div class="tmain"><div class="sname">${esc(x.name)}${sm?` <span class="muted small" style="font-weight:500">· ${fmtDur(sm)} today</span>`:''}</div><div class="progwrap sub"><input class="prog" type="range" min="0" max="100" step="5" value="${pc}" data-id="${t.id}" data-sub="${x.id}" style="--p:${pc}%" aria-label="Progress for ${esc(x.name)}"><span class="pct">${pc}%</span></div></div><button class="btn sm" data-act="gosub" data-id="${t.id}" data-sub="${x.id}">Timer</button><button class="btn sm" data-act="subnote" data-id="${t.id}" data-sub="${x.id}">Note</button></div>`}).join('')}</div>`:'';
+  return `<div class="tgroup ${tcCls(t.color)}" ${tcSty(t.color)}><div class="trow">${lead}<div class="tmain"><div class="tname">${esc(t.name)}</div><div class="tmeta">${meta}</div></div><button class="btn sm" data-act="go" data-id="${t.id}">Timer</button><button class="btn sm" data-act="tnote" data-id="${t.id}">Note</button><button class="btn sm ghost" data-act="untoday" data-id="${t.id}" title="Remove from today" aria-label="Remove from today">${ICON.x}</button></div>${overall}${rows}</div>`}
 function renderToday(){
   const td=todayTasks(),k=todayKey(),done=td.filter(t=>t.checks[k]).length;
-  $('#doneCount').textContent=td.length?`${done} of ${td.length} done`:'';
+  const dp=dayProgress();$('#doneCount').textContent=td.length?`${done} of ${td.length} done · ${dp}%`:'';$('#dayBar').hidden=!td.length;$('#dayBar i').style.width=dp+'%';
   $('#todayList').innerHTML=td.length?td.map(todayGroup).join(''):`<div class="empty">${S.tasks.some(t=>!t.archived)?'Nothing picked yet. Add a task below.':'Welcome! Head to the Tasks tab and create your first task.'}</div>`;
   const rest=S.tasks.filter(t=>!t.archived&&!td.includes(t));
   $('#addRow').hidden=!rest.length;$('#trayHint').hidden=!rest.length;
@@ -687,7 +710,7 @@ function renderLog(){
 /* ---------- tasks page ---------- */
 let newColor='a';
 function renderColors(){$('#tkColors').innerHTML=COLORS.map(c=>`<button type="button" class="sw tc-${c} ${c===newColor?'on':''}" data-col="${c}" title="${COLOR_NAMES[c]}" aria-label="${COLOR_NAMES[c]}"></button>`).join('')+(isHex(newColor)?`<button type="button" class="sw on" ${tcSty(newColor)} data-col="${newColor}" title="Custom ${newColor}" aria-label="Custom colour"></button>`:'')+'<button type="button" class="sw wheelbtn" data-wheel="new" title="Colour wheel" aria-label="Open colour wheel"></button>'}
-function subsBlock(t){const subs=t.subs||[];return `<details class="subdet" data-t="${t.id}" ${openSubs.has(t.id)?'open':''}><summary>Subtasks (${subs.length})</summary><div class="sublist">${subs.map(x=>{const d=Object.keys(x.checks).length;return `<div class="subitem"><span>${esc(x.name)} <span class="muted small">${d} day${d===1?'':'s'}</span></span><span><button class="btn sm" data-act="subren" data-id="${t.id}" data-sub="${x.id}">Rename</button><button class="btn sm ghost danger" data-act="subdel" data-id="${t.id}" data-sub="${x.id}">Remove</button></span></div>`}).join('')}<div class="addrow"><input class="field" data-subin="${t.id}" placeholder="Add subtasks, e.g. Arrays, DP" maxlength="120"><button class="btn sm primary" data-act="subadd" data-id="${t.id}">Add</button></div></div></details>`}
+function subsBlock(t){const subs=t.subs||[];return `<details class="subdet" data-t="${t.id}" ${openSubs.has(t.id)?'open':''}><summary>Subtasks (${subs.length})</summary><div class="sublist">${subs.map(x=>{return `<div class="subitem"><span>${esc(x.name)}</span><span><button class="btn sm" data-act="subren" data-id="${t.id}" data-sub="${x.id}">Rename</button><button class="btn sm ghost danger" data-act="subdel" data-id="${t.id}" data-sub="${x.id}">Remove</button></span></div>`}).join('')}<div class="addrow"><input class="field" data-subin="${t.id}" placeholder="Add subtasks, e.g. Arrays, DP" maxlength="120"><button class="btn sm primary" data-act="subadd" data-id="${t.id}">Add</button></div></div></details>`}
 function taskRow(t){const st=taskStreak(t),k=todayKey(),on=(S.added[k]||[]).includes(t.id),late=t.due&&t.due<k&&!t.archived,days=Object.keys(t.checks).length;
   return `<div class="tk ${tcCls(t.color)}" ${tcSty(t.color)}><div class="info"><div class="tname"><span class="dot"></span>${esc(t.name)}${t.due?`<span class="badge ${late?'late':''}">${late?'Overdue · ':'Due '}${t.due}</span>`:''}${on?'<span class="badge">On today</span>':''}</div>
     <div class="tmeta">${st.cur}-day streak · best ${st.best} · ${days} day${days===1?'':'s'} done · ${fmtDur(totalSeconds(t.id))} studied</div></div>
@@ -721,7 +744,7 @@ function renderAll(){
   document.documentElement.dataset.theme=S.prefs.theme;
   const fresh=checkRewards();
   if(fresh.length){save();if(fresh.length<=3){rwQueue.push(...fresh);showNextReward()}else toast(`${fresh.length} tickets earned. See the Journal tab`)}
-  renderHeader();renderTiles();renderToday();renderTimerTasks();renderTimer();renderDaily();renderLog();renderTasks();renderJournal()}
+  renderHeader();renderTiles();renderToday();renderTimerTasks();renderTimer();renderDaily();renderLog();renderTasks();renderJournal();$('#ffBtn').textContent='Fireflies: '+(S.prefs.fireflies===false?'off':'on');ffSync()}
 
 /* ---------- events ---------- */
 const VIEWS=['vToday','vTasks','vJournal'];
@@ -768,6 +791,14 @@ document.addEventListener('click',e=>{
 document.addEventListener('toggle',e=>{const d=e.target;if(d.classList&&d.classList.contains('subdet')){d.open?openSubs.add(d.dataset.t):openSubs.delete(d.dataset.t)}},true);
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.matches&&e.target.matches('[data-subin]')){e.preventDefault();e.target.closest('.sublist').querySelector('[data-act=subadd]').click()}});
 
+document.addEventListener('input',e=>{const r=e.target;if(!(r.classList&&r.classList.contains('prog')))return;
+  const v=+r.value;r.style.setProperty('--p',v+'%');const lab=r.parentElement.querySelector('.pct');if(lab)lab.textContent=v+'%'});
+document.addEventListener('change',e=>{const r=e.target;if(!(r.classList&&r.classList.contains('prog')))return;
+  const t=task(r.dataset.id),x=subOf(t,r.dataset.sub),k=todayKey();if(!t||!x)return;const wasSub=!!x.checks[k],wasParent=!!t.checks[k];
+  setSubProg(t,x,k,+r.value);save();renderAll();
+  if(!wasParent&&t.checks[k])openNote({title:'All subtasks done. Add a note?',ctx:`${t.name} · ${longDate(k)}`,onSave:v=>{if(v.trim())addNote({kind:'task',taskId:t.id,text:v})}});
+  else if(!wasSub&&x.checks[k])openNote({title:'Nice work. Add a note?',ctx:`${label(t.id,x.id)} · ${longDate(k)}`,onSave:v=>{if(v.trim())addNote({kind:'task',taskId:t.id,subId:x.id,text:v})}})});
+
 /* drag a task onto today */
 document.addEventListener('dragstart',e=>{const c=e.target.closest?.('[data-chip]');if(!c)return;e.dataTransfer.setData('text/plain','task:'+c.dataset.chip);e.dataTransfer.effectAllowed='move'});
 const dz=$('#dropZone');
@@ -782,12 +813,34 @@ $('#importFile').onchange=async e=>{const f=e.target.files[0];e.target.value='';
   try{const d=JSON.parse(await f.text());if(!Array.isArray(d.tasks)||!Array.isArray(d.sessions))throw 0;
     if(!confirm('Replace everything in this browser with the imported data?'))return;S={...initial(),...d};migrate();save();renderAll();toast('Imported')}catch{toast('That file is not a Daymark backup')}};
 
+$('#ffBtn').onclick=()=>{S.prefs.fireflies=S.prefs.fireflies===false;save();renderAll();if(S.prefs.theme!=='dark')toast('Fireflies appear in dark mode')};
 /* reset everything (start fresh) */
 $('#resetBtn').onclick=()=>{
   if(!confirm('Erase ALL tasks, streaks, notes, sessions and tickets in this browser and start fresh?'+String.fromCharCode(10,10)+'Tip: press Export first if you want a backup.'))return;
   if(!confirm('This cannot be undone. Erase everything?'))return;
   try{localStorage.removeItem(KEY)}catch{}
   location.reload()};
+
+/* ---------- fireflies (dark mode) ---------- */
+const FF={cv:$('#flies'),on:false,list:[],raf:0,last:0,sprite:null,w:0,h:0};
+FF.ctx=FF.cv.getContext('2d');
+function ffSprite(){const c=document.createElement('canvas');c.width=c.height=64;const g=c.getContext('2d'),r=g.createRadialGradient(32,32,0,32,32,32);
+  r.addColorStop(0,'rgba(255,246,176,1)');r.addColorStop(.16,'rgba(255,230,128,.9)');r.addColorStop(.45,'rgba(234,160,67,.28)');r.addColorStop(1,'rgba(234,160,67,0)');g.fillStyle=r;g.fillRect(0,0,64,64);return c}
+function ffResize(){const dpr=Math.min(2,window.devicePixelRatio||1);FF.w=innerWidth;FF.h=innerHeight;FF.cv.width=FF.w*dpr;FF.cv.height=FF.h*dpr;FF.ctx.setTransform(dpr,0,0,dpr,0,0);
+  const n=Math.max(14,Math.min(38,Math.round(FF.w*FF.h/30000)));
+  FF.list=Array.from({length:n},()=>({x:Math.random()*FF.w,y:Math.random()*FF.h,a:Math.random()*6.283,s:10+Math.random()*18,sz:16+Math.random()*22,ph:Math.random()*6.283,sp:.5+Math.random()*1.1,turn:.4+Math.random()*.9}))}
+function ffFrame(t){if(!FF.on)return;const dt=Math.min(.05,(t-FF.last)/1000||.016)*(FF.k||1);FF.last=t;const c=FF.ctx;c.clearRect(0,0,FF.w,FF.h);
+  for(const f of FF.list){f.a+=Math.sin(t/1900+f.ph)*f.turn*dt*2.2;f.x+=Math.cos(f.a)*f.s*dt;f.y+=Math.sin(f.a)*f.s*dt-2.5*dt;
+    if(f.x<-30)f.x=FF.w+30;else if(f.x>FF.w+30)f.x=-30;if(f.y<-30)f.y=FF.h+30;else if(f.y>FF.h+30)f.y=-30;
+    const glow=.12+.88*Math.pow((Math.sin(t/1000*f.sp*2+f.ph)+1)/2,2.2),sz=f.sz*(.65+.35*glow);
+    c.globalAlpha=glow*.95;c.drawImage(FF.sprite,f.x-sz/2,f.y-sz/2,sz,sz)}
+  c.globalAlpha=1;FF.raf=requestAnimationFrame(ffFrame)}
+function ffSync(){FF.k=(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches)?.35:1;
+  const want=S.prefs.theme==='dark'&&S.prefs.fireflies!==false&&!document.hidden;
+  if(want&&!FF.on){if(!FF.sprite)FF.sprite=ffSprite();FF.on=true;ffResize();FF.last=performance.now();FF.raf=requestAnimationFrame(ffFrame)}
+  else if(!want&&FF.on){FF.on=false;cancelAnimationFrame(FF.raf);FF.ctx.clearRect(0,0,FF.w,FF.h)}}
+window.addEventListener('resize',()=>{if(FF.on)ffResize()});
+document.addEventListener('visibilitychange',ffSync);
 
 /* ---------- start ---------- */
 setInterval(()=>{checkAuto();renderTimer()},250);
