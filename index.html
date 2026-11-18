@@ -106,9 +106,6 @@ main{display:flex;flex-direction:column;gap:20px}
 .tray{display:flex;flex-wrap:wrap;gap:8px}
 .tchip{display:inline-flex;gap:8px;align-items:center;padding:6px 12px;border-radius:999px;border:1px dashed var(--tcol);background:var(--surface);cursor:grab;font:600 13px var(--sans);color:var(--ink)}
 .tchip::before{content:'';width:9px;height:9px;border-radius:50%;background:var(--tcol)}
-/* fireflies (dark mode only) */
-#flies{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:15;display:none}
-[data-theme=dark] #flies{display:block}
 /* subtask progress line */
 .progwrap{display:flex;align-items:center;gap:12px;margin:0 0 8px 40px}
 .prog{-webkit-appearance:none;appearance:none;flex:1;height:10px;border-radius:999px;outline:0;cursor:pointer;margin:0;
@@ -220,7 +217,6 @@ footer{display:flex;gap:10px 16px;flex-wrap:wrap;justify-content:center;align-it
 </style>
 </head>
 <body>
-<canvas id="flies" aria-hidden="true"></canvas>
 <header>
   <div class="brandrow">
     <div><div class="brand">Daymark</div><div class="sub" id="dateLine"></div></div>
@@ -314,7 +310,6 @@ footer{display:flex;gap:10px 16px;flex-wrap:wrap;justify-content:center;align-it
 <footer>
   <button class="btn sm ghost" id="exportBtn">Export</button>
   <button class="btn sm ghost" id="importBtn">Import</button>
-  <button class="btn sm ghost" id="ffBtn">Fireflies: on</button>
   <button class="btn sm ghost danger" id="resetBtn">Reset all data</button>
   <input type="file" id="importFile" accept="application/json" hidden>
   <span>Saved in this browser</span>
@@ -744,7 +739,7 @@ function renderAll(){
   document.documentElement.dataset.theme=S.prefs.theme;
   const fresh=checkRewards();
   if(fresh.length){save();if(fresh.length<=3){rwQueue.push(...fresh);showNextReward()}else toast(`${fresh.length} tickets earned. See the Journal tab`)}
-  renderHeader();renderTiles();renderToday();renderTimerTasks();renderTimer();renderDaily();renderLog();renderTasks();renderJournal();$('#ffBtn').textContent='Fireflies: '+(S.prefs.fireflies===false?'off':'on');ffSync()}
+  renderHeader();renderTiles();renderToday();renderTimerTasks();renderTimer();renderDaily();renderLog();renderTasks();renderJournal()}
 
 /* ---------- events ---------- */
 const VIEWS=['vToday','vTasks','vJournal'];
@@ -813,34 +808,12 @@ $('#importFile').onchange=async e=>{const f=e.target.files[0];e.target.value='';
   try{const d=JSON.parse(await f.text());if(!Array.isArray(d.tasks)||!Array.isArray(d.sessions))throw 0;
     if(!confirm('Replace everything in this browser with the imported data?'))return;S={...initial(),...d};migrate();save();renderAll();toast('Imported')}catch{toast('That file is not a Daymark backup')}};
 
-$('#ffBtn').onclick=()=>{S.prefs.fireflies=S.prefs.fireflies===false;save();renderAll();if(S.prefs.theme!=='dark')toast('Fireflies appear in dark mode')};
 /* reset everything (start fresh) */
 $('#resetBtn').onclick=()=>{
   if(!confirm('Erase ALL tasks, streaks, notes, sessions and tickets in this browser and start fresh?'+String.fromCharCode(10,10)+'Tip: press Export first if you want a backup.'))return;
   if(!confirm('This cannot be undone. Erase everything?'))return;
   try{localStorage.removeItem(KEY)}catch{}
   location.reload()};
-
-/* ---------- fireflies (dark mode) ---------- */
-const FF={cv:$('#flies'),on:false,list:[],raf:0,last:0,sprite:null,w:0,h:0};
-FF.ctx=FF.cv.getContext('2d');
-function ffSprite(){const c=document.createElement('canvas');c.width=c.height=64;const g=c.getContext('2d'),r=g.createRadialGradient(32,32,0,32,32,32);
-  r.addColorStop(0,'rgba(255,246,176,1)');r.addColorStop(.16,'rgba(255,230,128,.9)');r.addColorStop(.45,'rgba(234,160,67,.28)');r.addColorStop(1,'rgba(234,160,67,0)');g.fillStyle=r;g.fillRect(0,0,64,64);return c}
-function ffResize(){const dpr=Math.min(2,window.devicePixelRatio||1);FF.w=innerWidth;FF.h=innerHeight;FF.cv.width=FF.w*dpr;FF.cv.height=FF.h*dpr;FF.ctx.setTransform(dpr,0,0,dpr,0,0);
-  const n=Math.max(14,Math.min(38,Math.round(FF.w*FF.h/30000)));
-  FF.list=Array.from({length:n},()=>({x:Math.random()*FF.w,y:Math.random()*FF.h,a:Math.random()*6.283,s:10+Math.random()*18,sz:16+Math.random()*22,ph:Math.random()*6.283,sp:.5+Math.random()*1.1,turn:.4+Math.random()*.9}))}
-function ffFrame(t){if(!FF.on)return;const dt=Math.min(.05,(t-FF.last)/1000||.016)*(FF.k||1);FF.last=t;const c=FF.ctx;c.clearRect(0,0,FF.w,FF.h);
-  for(const f of FF.list){f.a+=Math.sin(t/1900+f.ph)*f.turn*dt*2.2;f.x+=Math.cos(f.a)*f.s*dt;f.y+=Math.sin(f.a)*f.s*dt-2.5*dt;
-    if(f.x<-30)f.x=FF.w+30;else if(f.x>FF.w+30)f.x=-30;if(f.y<-30)f.y=FF.h+30;else if(f.y>FF.h+30)f.y=-30;
-    const glow=.12+.88*Math.pow((Math.sin(t/1000*f.sp*2+f.ph)+1)/2,2.2),sz=f.sz*(.65+.35*glow);
-    c.globalAlpha=glow*.95;c.drawImage(FF.sprite,f.x-sz/2,f.y-sz/2,sz,sz)}
-  c.globalAlpha=1;FF.raf=requestAnimationFrame(ffFrame)}
-function ffSync(){FF.k=(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches)?.35:1;
-  const want=S.prefs.theme==='dark'&&S.prefs.fireflies!==false&&!document.hidden;
-  if(want&&!FF.on){if(!FF.sprite)FF.sprite=ffSprite();FF.on=true;ffResize();FF.last=performance.now();FF.raf=requestAnimationFrame(ffFrame)}
-  else if(!want&&FF.on){FF.on=false;cancelAnimationFrame(FF.raf);FF.ctx.clearRect(0,0,FF.w,FF.h)}}
-window.addEventListener('resize',()=>{if(FF.on)ffResize()});
-document.addEventListener('visibilitychange',ffSync);
 
 /* ---------- start ---------- */
 setInterval(()=>{checkAuto();renderTimer()},250);
