@@ -11,10 +11,10 @@ A study streak tracker that runs entirely in your browser. No account, no server
 - **Timer:** countdown or stopwatch with a pixel plant that grows as you focus. Each session records what you studied and when it started and ended
 - **Daily note:** a short end-of-day review, with its own streak
 - **Reward tickets:** earn collectible tickets for task streaks, long focus sessions with no pauses, big study days, total hours and daily-note streaks
-- **Subtasks:** break a task into parts (for example LeetCode into Arrays and DP). Doing any subtask counts the day for the main task's streak, and each subtask keeps its own count
+- **Subtasks:** break a task into parts (for example LeetCode into Arrays and DP). Each subtask has its own draggable progress line, and the main task counts for the day once every subtask is at 100%
 - **Tasks:** create as many as you like, with optional weekly, monthly or dated plans and custom colours (palette or colour wheel)
 - **Journal:** every daily note, session note and task note in one place, plus your ticket collection
-- Light and dark themes
+- Light theme and a dark navy theme with drifting fireflies (can be switched off in the footer)
 
 ## Your data
 
