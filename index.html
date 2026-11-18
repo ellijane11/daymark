@@ -104,6 +104,19 @@ main{display:flex;flex-direction:column;gap:20px}
 .tray{display:flex;flex-wrap:wrap;gap:8px}
 .tchip{display:inline-flex;gap:8px;align-items:center;padding:6px 12px;border-radius:999px;border:1px dashed var(--tcol);background:var(--surface);cursor:grab;font:600 13px var(--sans);color:var(--ink)}
 .tchip::before{content:'';width:9px;height:9px;border-radius:50%;background:var(--tcol)}
+/* subtasks */
+.tgroup{border-bottom:1px solid var(--line);padding-bottom:6px}
+.tgroup:last-child{border-bottom:0}
+.tgroup .trow{border-bottom:0}
+.subs{margin:0 0 6px 14px;padding-left:16px;border-left:2px solid var(--tcol,var(--line))}
+.subrow{display:flex;align-items:center;gap:10px;padding:6px 0}
+.subrow .sname{font-weight:600;font-size:14px}
+.tick.sm{width:22px;height:22px;border-radius:6px;border-width:2px}
+.tick.static{cursor:default}
+.subchips{display:flex;gap:6px;flex-wrap:wrap}
+.subdet{flex:1 0 100%;margin-top:4px}
+.sublist{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.subitem{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 10px;background:var(--surface2);border-radius:10px}
 /* timer */
 .timer{align-items:center;text-align:center}
 #garden{width:min(100%,220px);aspect-ratio:1;image-rendering:pixelated;image-rendering:crisp-edges;border-radius:16px;border:1px solid var(--line);background:linear-gradient(180deg,var(--sky1),var(--sky2))}
@@ -253,7 +266,8 @@ footer{display:flex;gap:10px 16px;flex-wrap:wrap;justify-content:center;align-it
 <main id="vTasks" hidden>
   <section class="card">
     <h2>Add a task</h2>
-    <input class="field" id="tkName" placeholder="e.g. Physics revision" maxlength="60">
+    <input class="field" id="tkName" placeholder="e.g. LeetCode" maxlength="60">
+    <input class="field" id="tkSubs" placeholder="Subtasks, optional, comma separated: Arrays, DP, Graphs" maxlength="200">
     <div class="formgrid">
       <select class="field" id="tkPlan" aria-label="Plan for"><option value="">No deadline</option><option value="week">Plan for this week</option><option value="month">Plan for this month</option><option value="date">Plan for a date…</option></select>
       <input class="field" type="date" id="tkDate" hidden>
@@ -300,7 +314,8 @@ footer{display:flex;gap:10px 16px;flex-wrap:wrap;justify-content:center;align-it
   <div id="dyInfo" class="small"></div>
   <div id="dyNotes" style="display:flex;flex-direction:column;gap:6px"></div>
   <div id="dyEdit" style="display:flex;flex-direction:column;gap:10px">
-    <label class="row" style="cursor:pointer"><input type="checkbox" id="dyDone"> I did this task on this day</label>
+    <div id="dySubs" style="display:flex;flex-direction:column;gap:6px"></div>
+    <label class="row" style="cursor:pointer"><input type="checkbox" id="dyDone"> <span id="dyDoneLbl">I did this task on this day</span></label>
     <textarea class="field" id="dyText" placeholder="Add a note (optional)"></textarea>
   </div>
   <div class="muted small" id="dyLocked">This day is locked. You can only change today and yesterday.</div>
@@ -349,7 +364,7 @@ const ICON={
   check:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg>',
   x:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>'
 };
-const freshTimer=(sel='')=>({sel,start:0,running:false,runStart:0,acc:0,lastEnd:0,taskId:'',mode:'down',target:0,pauses:0});
+const freshTimer=(sel='')=>({sel,start:0,running:false,runStart:0,acc:0,lastEnd:0,taskId:'',subId:'',mode:'down',target:0,pauses:0});
 
 /* ---------- state ---------- */
 const initial=()=>({v:4,tasks:[],sessions:[],notes:[],added:{},daily:{},rewards:[],prefs:{theme:(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'),mode:'down',mins:25,avatar:0},timer:freshTimer()});
@@ -367,12 +382,25 @@ function migrate(){
   }
   S.v=4;S.daily||={};S.rewards||=[];
   S.rewards=S.rewards.filter(r=>!['foc:25','foc:45','day:1'].includes(r.key));
-  S.tasks.forEach((t,i)=>{if(!COLORS.includes(t.color)&&!isHex(t.color))t.color=COLORS[i%4];t.checks||={}});
+  S.tasks.forEach((t,i)=>{if(!COLORS.includes(t.color)&&!isHex(t.color))t.color=COLORS[i%4];t.checks||={};t.subs||=[];if(!t.own)t.own={...t.checks};t.subs.forEach(x=>{x.checks||={}})});
 }
 migrate();
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch{toast('Could not save (storage full?)')}};
 const task=id=>S.tasks.find(t=>t.id===id);
 const taskName=id=>task(id)?.name||'Free study';
+/* subtasks: ticking any subtask counts the day for the parent task (the streak lives on the parent) */
+const subOf=(t,sid)=>t?.subs?.find(x=>x.id===sid);
+const label=(tid,sid)=>{const t=task(tid);if(!t)return 'Free study';const x=subOf(t,sid);return x?`${t.name} › ${x.name}`:t.name};
+function recompute(t,k){const any=(t.subs||[]).some(x=>x.checks[k]);if(any||t.own?.[k])t.checks[k]=1;else delete t.checks[k]}
+function setOwn(t,k,on){t.own||={};if(on)t.own[k]=1;else delete t.own[k];recompute(t,k)}
+function setSub(t,x,k,on){if(on)x.checks[k]=1;else delete x.checks[k];recompute(t,k)}
+function markDone(t,sid,k){const x=subOf(t,sid);if(x)setSub(t,x,k,true);else setOwn(t,k,true)}
+function rebuildChecks(t){const keys=new Set([...Object.keys(t.own||{}),...(t.subs||[]).flatMap(x=>Object.keys(x.checks))]);t.checks={};keys.forEach(k=>recompute(t,k))}
+const subStreak=x=>streakOf(new Set(Object.keys(x.checks)));
+function addSubs(t,names){String(names||'').split(',').map(x=>x.trim()).filter(Boolean).forEach(n=>{if(!t.subs.some(x=>x.name.toLowerCase()===n.toLowerCase()))t.subs.push({id:uid(),name:n.slice(0,40),checks:{}})})}
+const subSecondsOn=(tid,sid,k)=>sessionsOn(k).filter(x=>x.taskId===tid&&x.subId===sid).reduce((a,x)=>a+x.seconds,0);
+const subChips=t=>(t.subs||[]).length?`<div class="subchips">${t.subs.map(x=>`<span class="badge">${esc(x.name)} · ${Object.keys(x.checks).length}d</span>`).join('')}</div>`:'';
+const openSubs=new Set();
 function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('on');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove('on'),2600)}
 
 /* ---------- derived ---------- */
@@ -390,11 +418,11 @@ const totalSeconds=id=>S.sessions.filter(s=>s.taskId===id).reduce((a,s)=>a+s.sec
 
 /* ---------- mutations ---------- */
 function addTask(name,o={}){name=name.trim();if(!name)return null;
-  const t={id:uid(),name,created:Date.now(),checks:{},archived:false,color:o.color||COLORS[S.tasks.length%4],due:o.due||'',scope:o.scope||''};S.tasks.push(t);return t}
+  const t={id:uid(),name,created:Date.now(),checks:{},own:{},subs:[],archived:false,color:o.color||COLORS[S.tasks.length%4],due:o.due||'',scope:o.scope||''};addSubs(t,o.subs);S.tasks.push(t);return t}
 function toToday(id){const k=todayKey(),a=(S.added[k] ||= []);if(!a.includes(id))a.push(id)}
 function addNote(n){S.notes.push({id:uid(),ts:Date.now(),date:todayKey(),taskId:'',sessionId:'',kind:'task',...n,text:n.text.trim()})}
 function setSessionNote(sid,text){const i=S.notes.findIndex(n=>n.sessionId===sid);text=text.trim();
-  if(i>=0){if(text)S.notes[i].text=text;else S.notes.splice(i,1)}else if(text){const s=S.sessions.find(x=>x.id===sid);addNote({kind:'session',sessionId:sid,taskId:s?.taskId||'',date:s?dkey(new Date(s.start)):todayKey(),text})}}
+  if(i>=0){if(text)S.notes[i].text=text;else S.notes.splice(i,1)}else if(text){const s=S.sessions.find(x=>x.id===sid);addNote({kind:'session',sessionId:sid,taskId:s?.taskId||'',subId:s?.subId||'',date:s?dkey(new Date(s.start)):todayKey(),text})}}
 const sessionNote=sid=>S.notes.find(n=>n.sessionId===sid)?.text||'';
 
 /* ================= CHARACTERS (original SVG animals) ================= */
@@ -499,17 +527,21 @@ $('#noteWin').addEventListener('mousedown',e=>{if(e.target.id==='noteWin')closeN
 
 /* ---------- day dialog (grid click) ---------- */
 let dayCtx=null;
-function openDay(id,k){const t=task(id);if(!t)return;dayCtx={id,k};const ed=canEdit(k),m=taskSecondsOn(id,k);
+function openDay(id,k){const t=task(id);if(!t)return;dayCtx={id,k};const ed=canEdit(k),m=taskSecondsOn(id,k),subs=t.subs||[];
   $('#dyTitle').textContent=t.name;$('#dyDate').textContent=longDate(k)+(k===todayKey()?' (today)':k===yesterdayKey()?' (yesterday)':'');
-  $('#dyInfo').textContent=`${t.checks[k]?'Marked done':'Not marked done'}${m?' · '+fmtDur(m)+' studied':''}`;
+  const did=subs.filter(x=>x.checks[k]).map(x=>x.name);
+  $('#dyInfo').textContent=`${t.checks[k]?'Marked done':'Not marked done'}${did.length?' · '+did.join(', '):''}${m?' · '+fmtDur(m)+' studied':''}`;
   const notes=S.notes.filter(n=>n.taskId===id&&n.date===k).sort((a,b)=>a.ts-b.ts);
-  $('#dyNotes').innerHTML=notes.map(n=>`<div class="nt"><span class="kind">${n.kind==='session'?'Session':'Note'}</span>${esc(n.text)}</div>`).join('')||'<div class="muted small">No notes for this day.</div>';
+  $('#dyNotes').innerHTML=notes.map(n=>`<div class="nt"><span class="kind">${n.kind==='session'?'Session':'Note'}</span>${n.subId&&subOf(t,n.subId)?`<span class="kind">${esc(subOf(t,n.subId).name)}</span>`:''}${esc(n.text)}</div>`).join('')||'<div class="muted small">No notes for this day.</div>';
+  $('#dySubs').innerHTML=subs.length?'<div class="small muted">Subtasks done that day</div>'+subs.map(x=>`<label class="row" style="cursor:pointer"><input type="checkbox" data-sub="${x.id}" ${x.checks[k]?'checked':''}> ${esc(x.name)}</label>`).join(''):'';
+  $('#dyDoneLbl').textContent=subs.length?'General study on this task (no specific subtask)':'I did this task on this day';
   $('#dyEdit').hidden=!ed;$('#dyLocked').hidden=ed;$('#dySave').hidden=!ed;
-  $('#dyDone').checked=true;$('#dyText').value='';$('#dayWin').hidden=false}
+  $('#dyDone').checked=subs.length?!!t.own?.[k]:true;$('#dyText').value='';$('#dayWin').hidden=false}
 $('#dyClose').onclick=()=>$('#dayWin').hidden=true;
 $('#dayWin').addEventListener('mousedown',e=>{if(e.target.id==='dayWin')$('#dayWin').hidden=true});
 $('#dySave').onclick=()=>{const {id,k}=dayCtx,t=task(id);if(!canEdit(k)){toast('That day is locked');return}
-  if($('#dyDone').checked)t.checks[k]=1;else delete t.checks[k];
+  document.querySelectorAll('#dySubs input[data-sub]').forEach(i=>{const x=subOf(t,i.dataset.sub);if(x)setSub(t,x,k,i.checked)});
+  setOwn(t,k,$('#dyDone').checked);
   const v=$('#dyText').value.trim();if(v)addNote({kind:'task',taskId:id,date:k,text:v});
   $('#dayWin').hidden=true;save();renderAll()};
 
@@ -540,22 +572,22 @@ function beep(){try{const a=new (window.AudioContext||window.webkitAudioContext)
 function play(){
   const t=T();
   if(!t.start){
-    let id=t.sel;
+    let [id,sid]=String(t.sel).split('|');
     if(id==='__new'){const nt=addTask($('#tNew').value);if(!nt){toast('Type a task name first');return}id=nt.id;t.sel=id;$('#tNew').value=''}
     if(id)toToday(id);
-    t.taskId=id;t.start=Date.now();t.acc=0;t.pauses=0;t.mode=S.prefs.mode;t.target=S.prefs.mins*60000;
+    t.taskId=id;t.subId=sid||'';t.start=Date.now();t.acc=0;t.pauses=0;t.mode=S.prefs.mode;t.target=S.prefs.mins*60000;
   }
   if(t.running){t.acc+=Date.now()-t.runStart;t.running=false;t.lastEnd=Date.now();t.pauses=(t.pauses||0)+1}else{t.running=true;t.runStart=Date.now()}
   save();renderAll()}
-function finishSession(start,end,secs,taskId,pauses){
-  S.timer=freshTimer(taskId||T().sel);
+function finishSession(start,end,secs,taskId,pauses,subId){
+  S.timer=freshTimer(T().sel);
   if(secs<60){toast('Under a minute, so not saved');save();renderAll();return}
-  const s={id:uid(),taskId,start,end,seconds:secs,pauses};S.sessions.push(s);
-  const tk=task(taskId);if(tk){tk.checks[dkey(new Date(start))]=1;toToday(taskId)}
+  const s={id:uid(),taskId,subId:subId||'',start,end,seconds:secs,pauses};S.sessions.push(s);
+  const tk=task(taskId);if(tk){markDone(tk,subId,dkey(new Date(start)));toToday(taskId)}
   save();renderAll();
-  openNote({title:'Session complete',ctx:`${taskName(taskId)} · ${fmtDur(secs)} · ${hm(start)} to ${hm(end)}`,onSave:v=>setSessionNote(s.id,v)})}
-function stop(){const t=T();if(!t.start)return;const end=t.running?Date.now():t.lastEnd;finishSession(t.start,end,Math.round(elapsed()/1000),t.taskId,t.pauses||0)}
-function checkAuto(){const t=T();if(t.running&&t.mode==='down'&&elapsed()>=t.target){const end=t.runStart+(t.target-t.acc);beep();finishSession(t.start,end,Math.round(t.target/1000),t.taskId,t.pauses||0)}}
+  openNote({title:'Session complete',ctx:`${label(taskId,subId)} · ${fmtDur(secs)} · ${hm(start)} to ${hm(end)}`,onSave:v=>setSessionNote(s.id,v)})}
+function stop(){const t=T();if(!t.start)return;const end=t.running?Date.now():t.lastEnd;finishSession(t.start,end,Math.round(elapsed()/1000),t.taskId,t.pauses||0,t.subId)}
+function checkAuto(){const t=T();if(t.running&&t.mode==='down'&&elapsed()>=t.target){const end=t.runStart+(t.target-t.acc);beep();finishSession(t.start,end,Math.round(t.target/1000),t.taskId,t.pauses||0,t.subId)}}
 $('#play').onclick=play;$('#stop').onclick=stop;
 $('#mDown').onclick=()=>{S.prefs.mode='down';save();renderAll()};
 $('#mUp').onclick=()=>{S.prefs.mode='up';save();renderAll()};
@@ -586,11 +618,12 @@ function renderTimer(){
   $('#play').textContent=t.running?'Pause':idle?'Start':'Resume';$('#stop').disabled=idle;
   $('#tNew').hidden=!(idle&&t.sel==='__new');
   const live=idle?0:Math.round(el/1000);
-  $('#tInfo').textContent=idle?'':`${taskName(t.taskId)} · started ${hm(t.start)}`;
+  $('#tInfo').textContent=idle?'':`${label(t.taskId,t.subId)} · started ${hm(t.start)}`;
   $('#chToday').textContent='Today '+fmtDur(secondsOn(todayKey())+live)}
 function renderTimerTasks(){
   const sel=$('#tTask'),cur=T().sel,td=todayTasks(),rest=S.tasks.filter(t=>!t.archived&&!td.includes(t));
-  sel.innerHTML='<option value="">No task (free study)</option>'+(td.length?'<optgroup label="Today">'+td.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('')+'</optgroup>':'')+(rest.length?'<optgroup label="Other tasks">'+rest.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('')+'</optgroup>':'')+'<option value="__new">+ New task…</option>';
+  const opts=t=>`<option value="${t.id}">${esc(t.name)}${(t.subs||[]).length?' (general)':''}</option>`+(t.subs||[]).map(x=>`<option value="${t.id}|${x.id}">${esc(t.name)} › ${esc(x.name)}</option>`).join('');
+  sel.innerHTML='<option value="">No task (free study)</option>'+(td.length?'<optgroup label="Today">'+td.map(opts).join('')+'</optgroup>':'')+(rest.length?'<optgroup label="Other tasks">'+rest.map(opts).join('')+'</optgroup>':'')+'<option value="__new">+ New task…</option>';
   sel.value=[...sel.options].some(o=>o.value===cur)?cur:'';T().sel=sel.value}
 
 /* ---------- header ---------- */
@@ -606,17 +639,20 @@ function tileHTML(t){
   const days=Object.keys(t.checks).length;
   return `<article class="tile ${tcCls(t.color)}" ${tcSty(t.color)}><div class="thead"><div class="tname">${esc(t.name)}</div><div class="tstreak"><span class="dot"></span>${st.cur}-day streak</div></div>
     <div class="wd">${'MTWTFSS'.split('').map(x=>`<span>${x}</span>`).join('')}</div><div class="cal">${cells}</div>
-    <div class="tfoot"><span>Best ${st.best} · ${days} day${days===1?'':'s'} done</span><span>${fmtDur(totalSeconds(t.id))} studied</span></div></article>`}
+    <div class="tfoot"><span>Best ${st.best} · ${days} day${days===1?'':'s'} done</span><span>${fmtDur(totalSeconds(t.id))} studied</span></div>${subChips(t)}</article>`}
 function renderTiles(){const td=todayTasks();$('#tiles').innerHTML=td.length?td.map(tileHTML).join(''):'<div class="card empty" style="grid-column:1/-1">No tasks picked for today yet. Choose some below, or create them on the Tasks page.</div>'}
 
 /* ---------- today's tasks ---------- */
+function todayGroup(t){const k=todayKey(),m=taskSecondsOn(t.id,k),st=taskStreak(t).cur,subs=t.subs||[],nDone=subs.filter(x=>x.checks[k]).length,done=!!t.checks[k];
+  const lead=subs.length?`<div class="tick static ${done?'on':''}" role="img" aria-label="${done?'Done today':'Not done yet'}">${done?ICON.check:''}</div>`:`<button class="tick ${done?'on':''}" data-act="tick" data-id="${t.id}" aria-label="Mark ${esc(t.name)} done">${done?ICON.check:''}</button>`;
+  const meta=`${subs.length?`${nDone}/${subs.length} subtasks today · `:''}${m?fmtDur(m)+' studied · ':''}${st}-day streak`;
+  const rows=subs.length?`<div class="subs">${subs.map(x=>{const sm=subSecondsOn(t.id,x.id,k),ss=subStreak(x).cur,on=!!x.checks[k];
+    return `<div class="subrow"><button class="tick sm ${on?'on':''}" data-act="subtick" data-id="${t.id}" data-sub="${x.id}" aria-label="Mark ${esc(x.name)} done">${on?ICON.check:''}</button><div class="tmain"><div class="sname">${esc(x.name)}</div><div class="tmeta">${sm?fmtDur(sm)+' today · ':''}${ss}-day streak</div></div><button class="btn sm" data-act="gosub" data-id="${t.id}" data-sub="${x.id}">Timer</button><button class="btn sm" data-act="subnote" data-id="${t.id}" data-sub="${x.id}">Note</button></div>`}).join('')}</div>`:'';
+  return `<div class="tgroup ${tcCls(t.color)}" ${tcSty(t.color)}><div class="trow">${lead}<div class="tmain"><div class="tname">${esc(t.name)}</div><div class="tmeta">${meta}</div></div><button class="btn sm" data-act="go" data-id="${t.id}">Timer</button><button class="btn sm" data-act="tnote" data-id="${t.id}">Note</button><button class="btn sm ghost" data-act="untoday" data-id="${t.id}" title="Remove from today" aria-label="Remove from today">${ICON.x}</button></div>${rows}</div>`}
 function renderToday(){
   const td=todayTasks(),k=todayKey(),done=td.filter(t=>t.checks[k]).length;
   $('#doneCount').textContent=td.length?`${done} of ${td.length} done`:'';
-  $('#todayList').innerHTML=td.length?td.map(t=>{const m=taskSecondsOn(t.id,k),st=taskStreak(t).cur;
-    return `<div class="trow ${tcCls(t.color)}" ${tcSty(t.color)}><button class="tick ${t.checks[k]?'on':''}" data-act="tick" data-id="${t.id}" aria-label="Mark ${esc(t.name)} done">${t.checks[k]?ICON.check:''}</button>
-      <div class="tmain"><div class="tname">${esc(t.name)}</div><div class="tmeta">${m?fmtDur(m)+' studied · ':''}${st}-day streak</div></div>
-      <button class="btn sm" data-act="go" data-id="${t.id}">Timer</button><button class="btn sm" data-act="tnote" data-id="${t.id}">Note</button><button class="btn sm ghost" data-act="untoday" data-id="${t.id}" title="Remove from today" aria-label="Remove from today">${ICON.x}</button></div>`}).join(''):`<div class="empty">${S.tasks.some(t=>!t.archived)?'Nothing picked yet. Add a task below.':'Welcome! Head to the Tasks tab and create your first task.'}</div>`;
+  $('#todayList').innerHTML=td.length?td.map(todayGroup).join(''):`<div class="empty">${S.tasks.some(t=>!t.archived)?'Nothing picked yet. Add a task below.':'Welcome! Head to the Tasks tab and create your first task.'}</div>`;
   const rest=S.tasks.filter(t=>!t.archived&&!td.includes(t));
   $('#addRow').hidden=!rest.length;$('#trayHint').hidden=!rest.length;
   $('#addSel').innerHTML='<option value="">Choose a task…</option>'+rest.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('');
@@ -645,16 +681,17 @@ function renderLog(){
   const entries=[...ss.map(s=>({t:s.start,s})),...S.notes.filter(n=>n.date===k&&!n.sessionId).map(n=>({t:n.ts,n}))].sort((a,b)=>b.t-a.t);
   $('#logSum').textContent=`${fmtDur(secondsOn(k))} studied · ${ss.length} session${ss.length===1?'':'s'}`+(ss.length?` · ${hm(ss[0].start)} to ${hm(ss[ss.length-1].end)}`:'');
   $('#log').innerHTML=entries.length?entries.map(e=>{
-    if(e.s){const s=e.s,n=sessionNote(s.id);return `<div class="sess"><div class="h"><span class="t">${hm(s.start)} – ${hm(s.end)} · ${esc(taskName(s.taskId))}</span><span class="muted">${fmtDur(s.seconds)}</span></div>${n?`<div class="note">${esc(n)}</div>`:''}<button class="btn sm" data-act="snote" data-id="${s.id}">${n?'Edit note':'Add note'}</button> <button class="btn sm ghost danger" data-act="sdel" data-id="${s.id}">Delete</button></div>`}
-    const n=e.n;return `<div class="sess"><div class="h"><span class="t"><span class="kind">Note</span>${esc(taskName(n.taskId))}</span><span class="muted">${hm(n.ts)}</span></div><div class="note">${esc(n.text)}</div><button class="btn sm" data-act="nedit" data-id="${n.id}">Edit</button> <button class="btn sm ghost danger" data-act="ndel" data-id="${n.id}">Delete</button></div>`}).join(''):'<div class="empty">No sessions or notes yet today. Start the timer or tick a task.</div>'}
+    if(e.s){const s=e.s,n=sessionNote(s.id);return `<div class="sess"><div class="h"><span class="t">${hm(s.start)} – ${hm(s.end)} · ${esc(label(s.taskId,s.subId))}</span><span class="muted">${fmtDur(s.seconds)}</span></div>${n?`<div class="note">${esc(n)}</div>`:''}<button class="btn sm" data-act="snote" data-id="${s.id}">${n?'Edit note':'Add note'}</button> <button class="btn sm ghost danger" data-act="sdel" data-id="${s.id}">Delete</button></div>`}
+    const n=e.n;return `<div class="sess"><div class="h"><span class="t"><span class="kind">Note</span>${esc(label(n.taskId,n.subId))}</span><span class="muted">${hm(n.ts)}</span></div><div class="note">${esc(n.text)}</div><button class="btn sm" data-act="nedit" data-id="${n.id}">Edit</button> <button class="btn sm ghost danger" data-act="ndel" data-id="${n.id}">Delete</button></div>`}).join(''):'<div class="empty">No sessions or notes yet today. Start the timer or tick a task.</div>'}
 
 /* ---------- tasks page ---------- */
 let newColor='a';
 function renderColors(){$('#tkColors').innerHTML=COLORS.map(c=>`<button type="button" class="sw tc-${c} ${c===newColor?'on':''}" data-col="${c}" title="${COLOR_NAMES[c]}" aria-label="${COLOR_NAMES[c]}"></button>`).join('')+(isHex(newColor)?`<button type="button" class="sw on" ${tcSty(newColor)} data-col="${newColor}" title="Custom ${newColor}" aria-label="Custom colour"></button>`:'')+'<button type="button" class="sw wheelbtn" data-wheel="new" title="Colour wheel" aria-label="Open colour wheel"></button>'}
+function subsBlock(t){const subs=t.subs||[];return `<details class="subdet" data-t="${t.id}" ${openSubs.has(t.id)?'open':''}><summary>Subtasks (${subs.length})</summary><div class="sublist">${subs.map(x=>{const d=Object.keys(x.checks).length;return `<div class="subitem"><span>${esc(x.name)} <span class="muted small">${d} day${d===1?'':'s'}</span></span><span><button class="btn sm" data-act="subren" data-id="${t.id}" data-sub="${x.id}">Rename</button><button class="btn sm ghost danger" data-act="subdel" data-id="${t.id}" data-sub="${x.id}">Remove</button></span></div>`}).join('')}<div class="addrow"><input class="field" data-subin="${t.id}" placeholder="Add subtasks, e.g. Arrays, DP" maxlength="120"><button class="btn sm primary" data-act="subadd" data-id="${t.id}">Add</button></div></div></details>`}
 function taskRow(t){const st=taskStreak(t),k=todayKey(),on=(S.added[k]||[]).includes(t.id),late=t.due&&t.due<k&&!t.archived,days=Object.keys(t.checks).length;
   return `<div class="tk ${tcCls(t.color)}" ${tcSty(t.color)}><div class="info"><div class="tname"><span class="dot"></span>${esc(t.name)}${t.due?`<span class="badge ${late?'late':''}">${late?'Overdue · ':'Due '}${t.due}</span>`:''}${on?'<span class="badge">On today</span>':''}</div>
     <div class="tmeta">${st.cur}-day streak · best ${st.best} · ${days} day${days===1?'':'s'} done · ${fmtDur(totalSeconds(t.id))} studied</div></div>
-    <div class="row">${!t.archived&&!on?`<button class="btn sm primary" data-act="addtoday" data-id="${t.id}">Add to today</button>`:''}<button class="btn sm" data-act="rename" data-id="${t.id}">Rename</button><button class="btn sm" data-act="recolor" data-id="${t.id}">Colour</button><button class="btn sm" data-act="wheel" data-id="${t.id}">Wheel</button><button class="btn sm" data-act="finish" data-id="${t.id}">${t.archived?'Reopen':'Finish'}</button><button class="btn sm ghost danger" data-act="tdel" data-id="${t.id}">Delete</button></div></div>`}
+    <div class="row">${!t.archived&&!on?`<button class="btn sm primary" data-act="addtoday" data-id="${t.id}">Add to today</button>`:''}<button class="btn sm" data-act="rename" data-id="${t.id}">Rename</button><button class="btn sm" data-act="recolor" data-id="${t.id}">Colour</button><button class="btn sm" data-act="wheel" data-id="${t.id}">Wheel</button><button class="btn sm" data-act="finish" data-id="${t.id}">${t.archived?'Reopen':'Finish'}</button><button class="btn sm ghost danger" data-act="tdel" data-id="${t.id}">Delete</button></div>${subsBlock(t)}</div>`}
 function renderTasks(){
   const act=S.tasks.filter(t=>!t.archived),planned=act.filter(t=>t.due).sort((a,b)=>a.due.localeCompare(b.due)),ongoing=act.filter(t=>!t.due),fin=S.tasks.filter(t=>t.archived);
   $('#taskList').innerHTML=((planned.length?`<div class="grp">Planned</div>${planned.map(taskRow).join('')}`:'')+(ongoing.length?`<div class="grp">Ongoing</div>${ongoing.map(taskRow).join('')}`:'')+(fin.length?`<details style="margin-top:12px"><summary>Finished (${fin.length})</summary>${fin.map(taskRow).join('')}</details>`:''))||'<div class="empty">No tasks yet. Add your first one above.</div>';
@@ -676,7 +713,7 @@ function renderJournal(){
   $('#jList').innerHTML=dates.length?dates.map(k=>{const d=by[k];
     return `<div class="jday"><h3>${longDate(k)}${k===todayKey()?' (today)':''}</h3>${d.daily?`<div class="jdaily"><div class="small muted" style="font-weight:700;margin-bottom:2px">Daily note</div>${esc(d.daily)}</div>`:''}
       ${d.notes.sort((a,b)=>a.ts-b.ts).map(n=>{const s=n.sessionId&&S.sessions.find(x=>x.id===n.sessionId);
-        return `<div class="jnote"><div class="who">${s?`${hm(s.start)} to ${hm(s.end)} · ${fmtDur(s.seconds)} · `:''}${esc(taskName(n.taskId))}${s?'':' · note'}</div>${esc(n.text)}</div>`}).join('')}</div>`}).join(''):'<div class="empty">Nothing here yet. Your daily notes, session notes and task notes will collect on this page.</div>'}
+        return `<div class="jnote"><div class="who">${s?`${hm(s.start)} to ${hm(s.end)} · ${fmtDur(s.seconds)} · `:''}${esc(label(n.taskId,n.subId))}${s?'':' · note'}</div>${esc(n.text)}</div>`}).join('')}</div>`}).join(''):'<div class="empty">Nothing here yet. Your daily notes, session notes and task notes will collect on this page.</div>'}
 $('#jFilters').addEventListener('click',e=>{const b=e.target.closest('[data-jf]');if(b){jf=b.dataset.jf;renderJournal()}});
 
 /* ---------- render ---------- */
@@ -697,20 +734,27 @@ $('#tkColors').addEventListener('click',e=>{const w=e.target.closest('[data-whee
 function dueFor(scope,custom){const n=new Date();if(scope==='week'){n.setDate(n.getDate()+(7-n.getDay())%7);return dkey(n)}if(scope==='month')return dkey(new Date(n.getFullYear(),n.getMonth()+1,0));if(scope==='date')return custom;return ''}
 $('#tkAdd').onclick=()=>{const scope=$('#tkPlan').value,due=dueFor(scope,$('#tkDate').value);
   if(scope==='date'&&!due){toast('Pick a date');return}
-  const t=addTask($('#tkName').value,{color:newColor,due,scope});if(!t){toast('Type a task name');return}
-  $('#tkName').value='';save();renderAll();toast(`Added "${t.name}"`)};
+  const t=addTask($('#tkName').value,{color:newColor,due,scope,subs:$('#tkSubs').value});if(!t){toast('Type a task name');return}
+  $('#tkName').value='';$('#tkSubs').value='';save();renderAll();toast(`Added "${t.name}"`)};
 $('#tkName').addEventListener('keydown',e=>{if(e.key==='Enter')$('#tkAdd').click()});
 
 document.addEventListener('click',e=>{
   const b=e.target.closest('[data-act]');if(!b)return;const id=b.dataset.id,act=b.dataset.act;
   if(act==='cell')openDay(id,b.dataset.date);
-  else if(act==='tick'){const t=task(id),k=todayKey();if(t.checks[k])delete t.checks[k];else t.checks[k]=1;save();renderAll();
+  else if(act==='tick'){const t=task(id),k=todayKey();setOwn(t,k,!t.checks[k]);save();renderAll();
     if(t.checks[k])openNote({title:'Nice work. Add a note?',ctx:`${t.name} · ${longDate(k)}`,onSave:v=>{if(v.trim())addNote({kind:'task',taskId:id,text:v})}})}
+  else if(act==='subtick'){const t=task(id),x=subOf(t,b.dataset.sub),k=todayKey(),on=!x.checks[k];setSub(t,x,k,on);save();renderAll();
+    if(on)openNote({title:'Nice work. Add a note?',ctx:`${label(id,x.id)} · ${longDate(k)}`,onSave:v=>{if(v.trim())addNote({kind:'task',taskId:id,subId:x.id,text:v})}})}
+  else if(act==='gosub'){if(T().start)toast('A timer is already running');else{T().sel=id+'|'+b.dataset.sub;save();renderAll();$('#garden').scrollIntoView({behavior:'smooth',block:'center'})}}
+  else if(act==='subnote')openNote({title:'Add a note',ctx:`${label(id,b.dataset.sub)} · ${longDate(todayKey())}`,onSave:v=>{if(v.trim())addNote({kind:'task',taskId:id,subId:b.dataset.sub,text:v})}});
+  else if(act==='subadd'){const t=task(id),inp=document.querySelector(`[data-subin="${id}"]`);if(!inp.value.trim()){toast('Type a subtask name');return}addSubs(t,inp.value);inp.value='';openSubs.add(id);save();renderAll()}
+  else if(act==='subdel'){const t=task(id);if(confirm('Remove this subtask? Its days are removed from the streak calendar too.')){t.subs=t.subs.filter(x=>x.id!==b.dataset.sub);rebuildChecks(t);openSubs.add(id);save();renderAll()}}
+  else if(act==='subren'){const t=task(id),x=subOf(t,b.dataset.sub),n=prompt('Rename subtask',x.name);if(n&&n.trim()){x.name=n.trim().slice(0,40);openSubs.add(id);save();renderAll()}}
   else if(act==='go'){if(T().start)toast('A timer is already running');else{T().sel=id;save();renderAll();$('#garden').scrollIntoView({behavior:'smooth',block:'center'})}}
   else if(act==='tnote')openNote({title:'Add a note',ctx:`${taskName(id)} · ${longDate(todayKey())}`,onSave:v=>{if(v.trim())addNote({kind:'task',taskId:id,text:v})}});
   else if(act==='untoday'){S.added[todayKey()]=(S.added[todayKey()]||[]).filter(x=>x!==id);save();renderAll()}
   else if(act==='addtoday'){toToday(id);save();renderAll()}
-  else if(act==='snote'){const s=S.sessions.find(x=>x.id===id);openNote({title:'Session note',ctx:`${taskName(s.taskId)} · ${hm(s.start)} to ${hm(s.end)}`,text:sessionNote(id),onSave:v=>setSessionNote(id,v)})}
+  else if(act==='snote'){const s=S.sessions.find(x=>x.id===id);openNote({title:'Session note',ctx:`${label(s.taskId,s.subId)} · ${hm(s.start)} to ${hm(s.end)}`,text:sessionNote(id),onSave:v=>setSessionNote(id,v)})}
   else if(act==='sdel'){if(confirm('Delete this session?')){S.sessions=S.sessions.filter(s=>s.id!==id);S.notes=S.notes.filter(n=>n.sessionId!==id);save();renderAll()}}
   else if(act==='nedit'){const n=S.notes.find(x=>x.id===id);openNote({title:'Edit note',ctx:`${taskName(n.taskId)} · ${n.date}`,text:n.text,onSave:v=>{if(v.trim())n.text=v.trim();else S.notes=S.notes.filter(x=>x.id!==id)}})}
   else if(act==='ndel'){S.notes=S.notes.filter(x=>x.id!==id);save();renderAll()}
@@ -720,6 +764,9 @@ document.addEventListener('click',e=>{
   else if(act==='finish'){const t=task(id);t.archived=!t.archived;save();renderAll()}
   else if(act==='tdel'){const t=task(id);if(confirm(`Delete "${t.name}" and its streak? Study sessions are kept.`)){S.tasks=S.tasks.filter(x=>x.id!==id);Object.keys(S.added).forEach(k=>S.added[k]=S.added[k].filter(x=>x!==id));save();renderAll()}}
 });
+
+document.addEventListener('toggle',e=>{const d=e.target;if(d.classList&&d.classList.contains('subdet')){d.open?openSubs.add(d.dataset.t):openSubs.delete(d.dataset.t)}},true);
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.matches&&e.target.matches('[data-subin]')){e.preventDefault();e.target.closest('.sublist').querySelector('[data-act=subadd]').click()}});
 
 /* drag a task onto today */
 document.addEventListener('dragstart',e=>{const c=e.target.closest?.('[data-chip]');if(!c)return;e.dataTransfer.setData('text/plain','task:'+c.dataset.chip);e.dataTransfer.effectAllowed='move'});
