@@ -313,6 +313,7 @@ footer{display:flex;gap:10px 16px;flex-wrap:wrap;justify-content:center;align-it
   <button class="btn sm ghost danger" id="resetBtn">Reset all data</button>
   <input type="file" id="importFile" accept="application/json" hidden>
   <span>Saved in this browser</span>
+  <span>Anonymous visit counts via GoatCounter (no cookies)</span>
 </footer>
 
 <!-- note dialog -->
@@ -822,5 +823,6 @@ if('serviceWorker' in navigator&&location.protocol!=='file:'){const had=!!naviga
 if('serviceWorker' in navigator&&location.protocol!=='file:')navigator.serviceWorker.register('./sw.js').catch(()=>{});
 })();
 </script>
+<script data-goatcounter="https://ellie11.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 </body>
 </html>
