@@ -745,6 +745,7 @@ $('#resetBtn').onclick=()=>{
 /* ---------- start ---------- */
 setInterval(()=>{checkAuto();renderTimer()},250);
 save();renderAll();checkAuto();
+if('serviceWorker' in navigator&&location.protocol!=='file:'){const had=!!navigator.serviceWorker.controller;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(had)location.reload()})}
 if('serviceWorker' in navigator&&location.protocol!=='file:')navigator.serviceWorker.register('./sw.js').catch(()=>{});
 })();
 </script>
